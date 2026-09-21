@@ -56,3 +56,6 @@ Idee facili da cui partire: nuovi criteri di valutazione nel system prompt
 contesto", miglioramenti all'interfaccia. Per modifiche più sostanziali al
 criterio di giudizio, apri prima una issue per discuterne — è un prompt
 delicato, tarato con parecchi test.
+
+---
+Collegato a Vercel per il deploy automatico ad ogni push su `main`.

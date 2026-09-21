@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Slop Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,400&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --panel: #FFFFFF;
+    --ink: #201F1D;
+    --muted: #6B6862;
+    --line: #E3E0DA;
+    --low: #A8483C;
+    --mid: #B08324;
+    --high: #3E6B52;
+    --accent: #5B4FE8;
+    --accent-ink: #FFFFFF;
+    --serif: 'Fraunces', Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; position: relative; z-index: 1; }
+  header h1 { font-family: var(--serif); font-size: 36px; line-height: 1.05; margin: 0 0 14px; font-weight: 600; letter-spacing: -0.01em; }
+  header p.subhead { font-family: var(--serif); font-size: 19px; font-style: italic; color: var(--ink); margin: 0 0 14px; }
+  header p { color: var(--muted); margin: 0 0 40px; font-size: 15px; }
+
+  section { margin-bottom: 32px; }
+  .context { border-bottom: 1px solid var(--line); padding-bottom: 28px; }
+  .section-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 24px;
+  }
+  .context summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+  .context[open] summary { margin-bottom: 16px; }
+  .context-intro { font-size: 14px; color: var(--muted); max-width: 54ch; margin: 0 0 16px; }
+
+  .ref-row { border: 1px solid var(--line); border-radius: 4px; padding: 10px; margin-bottom: 10px; background: var(--panel); }
+  .ref-top { display: flex; gap: 8px; margin-bottom: 8px; }
+  .ref-row select, .ref-row input, .ref-row textarea {
+    font-family: var(--sans); font-size: 14px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink);
+  }
+  .ref-row select { flex: 0 0 auto; }
+  .ref-row input[data-field="titolo_o_link"] { flex: 1 1 auto; min-width: 0; }
+  .ref-row input[data-field="nota"] { width: 100%; margin-bottom: 8px; }
+  .ref-row textarea { width: 100%; min-height: 70px; resize: vertical; }
+  .remove-ref { border: none; background: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0 6px; }
+  .remove-ref:hover { color: var(--low); }
+
+  #addRefBtn {
+    font-size: 13px; color: var(--ink); background: none; border: 1px dashed var(--line);
+    border-radius: 4px; padding: 8px 12px; cursor: pointer;
+  }
+  #addRefBtn:hover { border-color: var(--muted); }
+
+  textarea#contentInput {
+    width: 100%; min-height: 220px; font-size: 16px; line-height: 1.55; padding: 16px;
+    border: 1px solid var(--line); border-radius: 4px; font-family: var(--sans);
+    resize: vertical; background: white; color: var(--ink);
+  }
+  .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+  .provenance { margin-top: 20px; }
+  .provenance label { display: block; font-size: 14px; margin-bottom: 6px; }
+  .provenance select {
+    font-family: var(--sans); font-size: 14px; padding: 8px; border: 1px solid var(--line);
+    border-radius: 4px; background: white; color: var(--ink); width: 100%; max-width: 340px;
+  }
+
+  .criteria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 16px 0 24px; }
+  .criterion-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .criterion-card .tag {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    font-size: 12px; font-weight: 500; padding: 3px 11px; border-radius: 999px; margin-bottom: 10px;
+  }
+  .criterion-card .criterion-score { font-family: var(--serif); font-size: 20px; margin-bottom: 6px; }
+  .criterion-card p { font-size: 14px; color: var(--muted); margin: 0; }
+
+  #evaluateBtn {
+    margin-top: 24px; background: var(--accent); color: var(--accent-ink); border: none; padding: 13px 26px;
+    font-size: 15px; border-radius: 4px; cursor: pointer; font-family: var(--sans); font-weight: 500;
+  }
+  #evaluateBtn:hover:not(:disabled) { filter: brightness(0.92); }
+  #evaluateBtn:disabled { opacity: .5; cursor: default; }
+
+  #resultsSection { border-top: 1px solid var(--line); padding-top: 32px; }
+
+  .gate-banner {
+    background: rgba(168,72,60,0.1); border: 1px solid var(--low); color: var(--low);
+    padding: 14px 16px; border-radius: 4px; font-size: 14px; margin-bottom: 24px;
+  }
+
+  .score-badge { font-family: var(--serif); font-size: 64px; line-height: 1; margin-bottom: 4px; }
+  .score-badge.low { color: var(--low); }
+  .score-badge.mid { color: var(--mid); }
+  .score-badge.high { color: var(--high); }
+  .score-scale { font-size: 16px; color: var(--muted); font-family: var(--sans); }
+
+  .synthesis { font-size: 16px; margin: 12px 0 0; max-width: 58ch; }
+
+  .result-summary {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px 26px; margin-bottom: 24px;
+  }
+
+  .distinctive, .utility, .provenance-info {
+    font-size: 14px; margin-top: 16px; padding: 12px 14px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px;
+  }
+  .provenance-info { color: var(--muted); background: none; border: none; padding: 8px 0 0; }
+
+  .passage-block {
+    margin-top: 28px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px 24px;
+  }
+  .passage-block h3 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 10px; }
+  .passage-text { font-size: 15px; white-space: pre-wrap; }
+  mark.weak { background: rgba(168,72,60,0.16); border-bottom: 1px solid var(--low); cursor: help; }
+
+  .error { color: var(--low); font-size: 14px; }
+
+  .logo-row { margin-bottom: 20px; }
+  .logo-btn {
+    background: none; border: none; padding: 0; margin: 0; line-height: 0; cursor: pointer;
+  }
+  .logo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+  .logo-ink { fill: var(--ink); }
+  .logo-accent-fill { fill: var(--accent); }
+  .logo-accent-stroke { fill: none; stroke: var(--accent); stroke-width: 11; }
+  .logo-handle { fill: none; stroke-width: 11; stroke-linecap: round; }
+
+  .nav-btn {
+    font-family: var(--sans); font-size: 14px; color: var(--muted); background: none; border: none;
+    padding: 0; margin: 0; cursor: pointer;
+  }
+  .view-nav { margin-bottom: 32px; font-size: 14px; }
+  .view-nav .nav-btn { padding: 0 16px 2px 0; }
+  .nav-btn.active { color: var(--accent); border-bottom: 1px solid var(--accent); }
+  .back-link .nav-btn { color: var(--accent); font-size: 14px; }
+  .back-link .nav-btn:hover { text-decoration: underline; }
+
+  .about-content {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px 28px;
+  }
+  .about-content a { color: var(--accent); }
+  .about-content a:hover { text-decoration: none; }
+
+  textarea:focus, input:focus, select:focus, .nav-btn:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+
+  .about-content h2 { font-family: var(--serif); font-size: 18px; font-weight: 400; margin: 28px 0 10px; }
+  .about-content ul { padding-left: 20px; margin: 0 0 20px; }
+  .about-content li { margin-bottom: 8px; font-size: 15px; }
+  .about-content .back-link { margin-top: 32px; font-size: 14px; }
+  .placeholder-note {
+    border: 1px dashed var(--line); background: var(--panel); border-radius: 4px;
+    padding: 12px 14px; font-size: 13px; color: var(--muted); margin-top: 28px;
+  }
+
+  /* Sfondo animato: una carrellata di card-fantasma che allude a un feed di contenuti,
+     sfocata e sfumata verso il centro per non competere con il tool. */
+  .feed-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 18px;
+    overflow: hidden;
+    pointer-events: none;
+    filter: blur(2px);
+    opacity: 0.75;
+    -webkit-mask-image: radial-gradient(ellipse 62% 60% at 50% 38%, transparent 30%, black 80%);
+            mask-image: radial-gradient(ellipse 62% 60% at 50% 38%, transparent 30%, black 80%);
+  }
+  .feed-col { width: 190px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 14px; will-change: transform; animation: feedScroll linear infinite; }
+  .feed-col.b, .feed-col.d { animation-direction: reverse; }
+  .feed-col.a { animation-duration: 30s; }
+  .feed-col.b { animation-duration: 38s; }
+  .feed-col.c { animation-duration: 26s; }
+  .feed-col.d { animation-duration: 42s; }
+  .feed-col.e { animation-duration: 34s; }
+  @keyframes feedScroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+  .feed-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .feed-line { height: 8px; border-radius: 4px; background: var(--line); margin-bottom: 7px; }
+  .feed-line:last-child { margin-bottom: 0; }
+  .feed-line.w95 { width: 95%; } .feed-line.w80 { width: 80%; } .feed-line.w60 { width: 60%; } .feed-line.w40 { width: 40%; }
+  .feed-media { height: 68px; border-radius: 8px; margin-bottom: 8px; }
+  .feed-media.m-yellow { background: rgba(232,183,46,0.34); }
+  .feed-media.m-orange { background: rgba(226,121,43,0.34); }
+  .feed-media.m-red { background: rgba(214,69,69,0.32); }
+  .feed-media.m-fuchsia { background: rgba(194,59,142,0.32); }
+  .feed-media.m-accent { background: rgba(91,79,232,0.22); }
+  @media (max-width: 980px) { .feed-col.e { display: none; } }
+  @media (max-width: 780px) { .feed-col.d { display: none; } .feed-bg { opacity: 0.6; } }
+  @media (max-width: 560px) {
+    .feed-col.c { display: none; }
+    .feed-bg {
+      opacity: 0.5;
+      -webkit-mask-image: radial-gradient(ellipse 90% 42% at 50% 30%, transparent 40%, black 88%);
+              mask-image: radial-gradient(ellipse 90% 42% at 50% 30%, transparent 40%, black 88%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) { .feed-col { animation: none; } }
+</style>
+</head>
+<body>
+
+  <div class="feed-bg" aria-hidden="true">
+      <div class="feed-col a">
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+      </div>
+      <div class="feed-col b">
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+      </div>
+      <div class="feed-col c">
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+      </div>
+      <div class="feed-col d">
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+      </div>
+      <div class="feed-col e">
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-yellow"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w40"></div>
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-orange"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-red"></div>
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w80"></div>
+          <div class="feed-line w40"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-fuchsia"></div>
+          <div class="feed-line w60"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w60"></div>
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-media m-accent"></div>
+          <div class="feed-line w40"></div>
+          <div class="feed-line w80"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-line w95"></div>
+          <div class="feed-line w60"></div>
+        </div>
+      </div>
+  </div>
+<div class="wrap">
+
+  <div class="logo-row">
+    <button type="button" class="logo-btn" id="logoBtn" aria-label="The Slop Detector — torna al tool">
+      <svg viewBox="0 0 150 100" width="64" height="43" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoHandleFade" x1="95" y1="75" x2="113" y2="93" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#5B4FE8" stop-opacity="1"/>
+            <stop offset="100%" stop-color="#5B4FE8" stop-opacity="0.2"/>
+          </linearGradient>
+        </defs>
+        <text x="0" y="76" font-family="Fraunces, Georgia, serif" font-weight="600" font-size="78" class="logo-ink">S</text>
+        <circle cx="76" cy="58" r="19" class="logo-accent-stroke"/>
+        <line x1="95" y1="16" x2="95" y2="75" class="logo-accent-stroke"/>
+        <line x1="95" y1="75" x2="113" y2="93" class="logo-handle" stroke="url(#logoHandleFade)"/>
+      </svg>
+    </button>
+  </div>
+
+  <nav class="view-nav">
+    <button type="button" class="nav-btn" data-view="tool">Tool</button>
+    <button type="button" class="nav-btn" data-view="about">About</button>
+  </nav>
+
+  <div id="toolView">
+
+  <header>
+    <h1>The Slop Detector</h1>
+    <p class="subhead">Trova il segnale in mezzo al rumore.</p>
+    <p>I tool che segnalano se un testo è scritto o no dall'AI non ti dicono nulla sul suo contenuto. Con lo slop detector distingui ciò che è rilevante da ciò che non lo è, a prescindere da come è stato fatto.</p>
+  </header>
+
+  <details class="context section-card">
+    <summary>Il tuo contesto</summary>
+    <p class="context-intro">Dicci cosa conta per te. Segnalaci articoli, libri, video che per te sono un esempio di qualità. Oppure raccontaci il tuo progetto personale, così aiuti il tool a capire cosa ti serve, e cosa puoi ignorare.</p>
+    <div id="refList"></div>
+    <button type="button" id="addRefBtn">+ Aggiungi un riferimento</button>
+  </details>
+
+  <section class="input-section section-card">
+    <textarea id="contentInput" placeholder="Incolla qui il testo da valutare..."></textarea>
+    <p class="hint">Incolla il testo, non un link, così sei sicuro che il tool riesca a leggerlo per intero.</p>
+
+    <div class="provenance">
+      <label for="intentInput">Perché ti interessa valutare questo contenuto?</label>
+      <input type="text" id="intentInput" placeholder="Es. voglio capire se condividerlo nella newsletter" style="width:100%; max-width:480px; font-family: var(--sans); font-size: 14px; padding: 8px; border: 1px solid var(--line); border-radius: 4px;">
+    </div>
+
+    <div class="provenance">
+      <label for="provenanceSelect">Da dove arriva questo contenuto?</label>
+      <select id="provenanceSelect">
+        <option value="">Non specificato</option>
+        <option value="cercato">L'ho cercato attivamente</option>
+        <option value="newsletter">È una newsletter a cui sono iscritto</option>
+        <option value="feed">Me lo ha proposto un feed o un social</option>
+        <option value="condiviso">Me lo ha condiviso qualcuno</option>
+        <option value="altro">Altro</option>
+      </select>
+      <input type="text" id="provenanceOtherInput" placeholder="Specifica..." hidden
+        style="margin-top:8px; width:100%; max-width:340px; font-family: var(--sans); font-size: 14px; padding: 8px; border: 1px solid var(--line); border-radius: 4px;">
+    </div>
+
+    <button id="evaluateBtn">Valuta</button>
+  </section>
+
+  <section id="resultsSection" hidden></section>
+
+  </div>
+
+  <div id="aboutView" hidden>
+    <header>
+      <h1>The Slop Detector</h1>
+      <p class="subhead">Trova il segnale in mezzo al rumore.</p>
+    </header>
+
+    <section class="about-content">
+      <p>Le persone sono sempre più diffidenti verso i contenuti generati dall'AI. Per questo si diffondono strumenti che cercano di individuare cosa è fatto con l'AI, spesso senza successo.</p>
+
+      <p>Noi siamo convinti che, anziché chiederci cosa è fatto con l'AI, dovremmo costruire strumenti per distinguere cosa è significativo o utile.</p>
+
+      <p>Per questo abbiamo progettato lo Slop Detector.</p>
+
+      <h2>Che cos'è?</h2>
+      <p>Lo Slop Detector non distingue AI da non AI. Aiuta a distinguere ciò che è significativo da ciò che è superfluo, a prescindere da chi lo ha prodotto. È un filtro che valuta la qualità dei contenuti a partire dal gusto, dalla cultura, dagli interessi e dagli obiettivi di chi legge.</p>
+
+      <h2>Come valuta</h2>
+      <p>Ogni contenuto viene misurato su sei criteri:</p>
+      <div class="criteria-grid">
+        <div class="criterion-card"><span class="tag">Ha senso</span><p>È coerente, ha una direzione, nasce da un'intenzione.</p></div>
+        <div class="criterion-card"><span class="tag">È culturalmente onesto</span><p>Le fonti sono verificabili, il contributo è originale.</p></div>
+        <div class="criterion-card"><span class="tag">È interessante</span><p>Per te, per ciò che stai facendo e vuoi ottenere.</p></div>
+        <div class="criterion-card"><span class="tag">Resiste al tempo</span><p>Sarà ancora rilevante in futuro, e non si esaurisce in uno scroll.</p></div>
+        <div class="criterion-card"><span class="tag">È nocivo</span><p>Vuole polarizzare, aggredire, escludere, discriminare.</p></div>
+        <div class="criterion-card"><span class="tag">Cosa puoi farci</span><p>In che modo è rilevante e utile per il progetto a cui stai lavorando.</p></div>
+      </div>
+
+      <p>Lo Slop Detector è stato ideato e progettato da <a href="https://futuripreferibili.substack.com/" target="_blank" rel="noopener">Paolo Gervasi</a>, Head of Content di <a href="https://wearecosmico.com/it" target="_blank" rel="noopener">Cosmico</a>, con il supporto di SuperAgents, la community di <a href="https://playnew.com/" target="_blank" rel="noopener">Play New</a> dedicata all'evoluzione del lavoro nell'era dell'AI.</p>
+
+      <p class="back-link"><button type="button" class="nav-btn" data-view="tool">← Torna al tool</button></p>
+    </section>
+  </div>
+
+</div>
+
+<script>
+const SYSTEM_PROMPT = `Sei il motore di valutazione dello Slop Detector di Cosmico. Il tuo compito non è distinguere contenuti scritti da un'AI da contenuti scritti da un umano — la provenienza non ti riguarda. Il tuo compito è distinguere ciò che è significativo da ciò che è superfluo: un giudizio di rilevanza e qualità, non di autenticità.
+
+Riceverai un contenuto testuale e, quando disponibile, un profilo personale di chi lo sta valutando. Restituisci un giudizio strutturato secondo i criteri sotto, nel formato indicato in fondo.
+
+VINCOLI DI COMPORTAMENTO — leggi prima di tutto
+- Un punteggio medio (3 su 5) richiede tanta motivazione quanto un punteggio estremo (1 o 5). Non usare il 3 come scelta di default o come modo per evitare di prendere posizione.
+- Scrivi sempre il ragionamento prima del punteggio numerico, mai dopo.
+- Non ti verrà fornita né richiesta un'informazione sulla provenienza del contenuto: è gestita a parte dall'interfaccia e non deve influenzare il tuo giudizio in alcun modo.
+- Se il profilo personale non è disponibile o è vuoto, usa i criteri generali indicati in ogni sezione — non inventare interessi, gusti o obiettivi che non ti sono stati dichiarati esplicitamente.
+
+FORMATO DEL PROFILO PERSONALE (INPUT)
+Il profilo, quando disponibile, arriva come JSON con una lista "riferimenti", ciascuno con tipo, titolo_o_link, nota, ed eventualmente testo_completo per i tipi articolo e poesia_racconto. Zero, uno o più riferimenti per tipo, tutti facoltativi.
+- articolo, poesia_racconto, quando testo_completo è presente: segnale forte, trattalo come materiale di calibrazione vero, stesso peso concettuale degli ancoraggi 5 di questo prompt. Per poesia_racconto applica i criteri del nucleo con il metro proprio della scrittura creativa: "ha senso" valuta coerenza interna e intenzione espressiva (non tesi argomentativa), "onestà culturale" valuta soprattutto originalità di voce più che veridicità fattuale.
+  Termine di paragone diretto: se un riferimento è dello stesso genere o formato del contenuto da valutare (una poesia contro un'altra poesia, un discorso contro un altro discorso, un saggio contro un altro saggio), non trattarlo come semplice sfondo culturale — usalo come metro di paragone diretto e prioritario, criterio per criterio. Chiediti esplicitamente se il contenuto regge il confronto con quel riferimento specifico, non con la media dei testi del suo genere. Se l'utente ha scelto come riferimento un autore o un testo che rappresenta uno standard alto (un classico riconosciuto, un discorso storico), misura il contenuto su quello standard: un testo onesto, sentito, tecnicamente corretto ma privo della densità, tensione o originalità del riferimento riceve un punteggio proporzionalmente più basso, non un punteggio indulgente solo perché è comunque una poesia, comunque un discorso ben costruito. La scelta del riferimento è un'indicazione esplicita e forte di cosa l'utente considera qualità: trattarla come sfondo vago invece che come metro di paragone tradisce l'intento con cui è stata fornita. Questo vale indipendentemente da quanto il contenuto valutato sia gradevole o competente in assoluto — qui il giudizio richiesto è relativo al riferimento, non assoluto.
+- libro, video_podcast: solo titolo/link + eventuale nota, mai il contenuto integrale — non è stato letto né ascoltato. Segnale debole ma non nullo: usalo per farti un'idea di sensibilità culturale generale, non per valutazioni puntuali su temi specifici.
+- progetto_personale: link o descrizione a qualcosa su cui l'utente sta lavorando. Funziona anche come indicatore di obiettivo dichiarato — se presente, può soddisfare la condizione 1 del correttivo di utilità verso il basso, non solo il criterio interesse.
+Se riferimenti è assente o vuoto, applica i fallback generali indicati sotto.
+
+INTENTO IMMEDIATO E COLLEGAMENTO AL PERCORSO
+Oltre al profilo permanente, potresti ricevere un intento immediato: una frase breve su perché l'utente sta valutando proprio questo contenuto ora. Quando presente, usalo come ancora primaria per i criteri interesse e utilità, è più specifico e affidabile del profilo generale. Se assente, ricadi sui riferimenti del profilo permanente, o sui criteri generali se anche quelli mancano.
+In ogni valutazione costruisci un campo "collegamento" esplicito: una frase concreta che nomina il rapporto tra questo contenuto e ciò che l'utente ha dichiarato di voler fare, non una frase generica ma specifica (es. "approfondisce X che avevi citato in Y" oppure "non tocca nulla di quanto dichiarato, è distante dal tuo intento attuale"). Se non hai né intento immediato né profilo, dichiara che la valutazione è generica per assenza di contesto: non inventare un collegamento che non hai basi per affermare.
+
+RICONOSCERE IL FORMATO DEL CONTENUTO
+Prima di valutare, identifica internamente (senza dichiararlo nell'output) che tipo di contenuto è, articolo lungo, post social, newsletter, thread, altro, e usalo per calibrare le aspettative. In particolare su "può resistere al tempo": non penalizzare un contenuto breve e volutamente effimero per non avere l'ambizione di un saggio, valuta se assolve bene alla propria funzione nel proprio formato.
+
+I QUATTRO CRITERI DEL NUCLEO
+
+1. Ha senso?
+Valuta se il contenuto è coerente, ha una direzione riconoscibile, nasce da un'intenzione comunicativa — anche minima — piuttosto che da un accumulo casuale di frasi.
+Test operativo — portabilità: immagina di spostare questo testo, o il suo paragrafo centrale, in un articolo su un argomento completamente diverso. Se funzionerebbe ugualmente bene senza stonare, il testo ha probabilmente poca specificità reale, indipendentemente da quanto sia scritto in modo fluido. La fluidità non è evidenza di senso.
+Ancoraggio 5 (da "Unlearn", Futuri Preferibili): "Nel 2007 lo scrittore e futurologo Alvin Toffler ha scritto: «Il sistema scolastico pubblico è progettato per produrre forza lavoro per un'economia che non ci sarà». Oggi la frase potrebbe essere corretta in modo ancora più radicale: il sistema scolastico è progettato per produrre abitanti di un mondo che non ci sarà. La scuola, scriveva lo studioso Ivan Illich già nel 1971, non è organizzata per educare ed emancipare le persone. È organizzata per scolarizzarle." Tesi netta fin dal primo paragrafo, ancorata a fonti verificabili usate per costruire l'argomento, non per decorarlo.
+Ancoraggio 1 (testo fluido ma vuoto): "Nel mondo del lavoro di oggi, il cambiamento è sempre più rapido e le organizzazioni devono adattarsi per rimanere competitive. È importante che i professionisti sviluppino nuove competenze e siano pronti ad affrontare le sfide che il futuro porterà." Grammaticalmente ineccepibile, in tema, ma nessuna affermazione verificabile, nessuna posizione, applicabile a qualunque settore in qualunque decennio.
+
+2. È culturalmente onesto?
+Valuta due sotto-dimensioni distinte, non fonderle in un solo giudizio: veridicità (le affermazioni fattuali sono verificabili? le fonti citate esistono e dicono davvero quello che il testo riporta?) e originalità (il contenuto aggiunge una prospettiva propria, o si limita a riassumere cose già dette altrove?).
+Segnale di attenzione (statistiche): dati statistici con precisione sospetta (percentuali specifiche non arrotondate, es. "47%") abbinati a un'istituzione autorevole ma senza riferimento verificabile sono il pattern tipico di un'allucinazione plausibile. Segnalali anche quando non puoi dimostrare che siano falsi. Attenzione anche al pattern opposto e altrettanto debole: numeri tondi o vaghi usati come prova di autorevolezza aneddotica ("+100 startup", "1 caso su 10", "decine di clienti") senza alcun dato a supporto — non falsificabili quanto una cifra sospetta, ma comunque un'affermazione di esperienza non verificata, da trattare come aneddoto, non come evidenza.
+Segnale di attenzione (gergo tecnico): la densità di terminologia specialistica, acronimi di settore e nomi di framework o autori noti (nel tech: PMF, GTM, CAC, ARPU/ARPA, PLG/SLG, e simili) non è di per sé prova di competenza né di originalità — spesso è l'opposto, un modo per far sembrare autorevole un contenuto che si limita a ripetere nozioni da manuale. Test operativo — spoliazione del gergo: prova a riformulare ogni affermazione del testo senza il vocabolario tecnico, in linguaggio comune. Se il risultato è un elenco di cose che chiunque operi in quel settore già sa (prima valida l'idea poi scala, i clienti paganti pochi pagano di più dei clienti paganti tanti, la fidelizzazione conta), il testo ha una originalità bassa indipendentemente da quanto suoni esperto — il gergo ha sostituito l'idea, non l'ha veicolata. Questo vale a prescindere dal fatto che l'autore dichiari esperienza diretta: un'esperienza reale può benissimo produrre solo osservazioni convenzionali.
+Ancoraggio 5 (parafrasato, fonte: Michele Pagani, "Togliete i social agli adulti, mica agli under 16"): il pezzo introduce apposta le prove che complicano la propria tesi, due lavori di ricerca secondo cui il legame tra social e benessere psicologico degli adolescenti risulta debole o incoerente nella maggior parte degli studi citati. Solo dopo aver riconosciuto questo, l'autore restringe l'affermazione a un effetto più circoscritto, invece di nascondere la complicazione.
+Ancoraggio 1 (citazione inventata plausibile): "Secondo una ricerca dell'Università di Stanford del 2021, i lavoratori che utilizzano strumenti di AI generativa aumentano la propria produttività del 47%." Precisione sospetta, istituzione autorevole, nessun riferimento verificabile.
+Ancoraggio 1 (gergo come sostituto di sostanza, tipico dei post LinkedIn "da esperto"): un post enumera cinque "regole d'oro" del go-to-market delle startup — validare prima di scalare, distinguere fase pre e post product-market fit, differenza di unit economics tra modelli self-service ed enterprise, l'importanza della retention — condite di acronimi di settore e di cifre aneddotiche non verificabili ("lavorato con oltre 100 startup", "1 su 10 lo fa ancora bene"). Spogliato del gergo, ogni punto è materiale da manuale che chiunque lavori nel settore conosce da anni: nessuna delle cinque osservazioni porta un dato, un caso verificabile o una connessione che non fosse già patrimonio comune. Il tono da osservazione controcorrente ("possibile che sia solo un'impressione mia?") non compensa l'assenza di sostanza nuova.
+Ancoraggio intermedio (vero ma non originale): "Il lavoro ibrido combina i vantaggi del lavoro da remoto con quelli della presenza in ufficio." Niente di falso, ma zero prospettiva propria.
+
+3. È interessante?
+Con profilo disponibile: valuta l'overlap con gli interessi/obiettivi dichiarati e la distanza dal già visto, ma non premiare solo la conferma di ciò che l'utente pensa già (rischio filter bubble: segnalalo nella motivazione se lo noti).
+Senza profilo: valuta novità informativa, densità di idee per parola, presenza di una voce riconoscibile.
+Ancoraggio 5 (parafrasato, fonte: saggio sul "saccheggio" delle istituzioni nel dopo-ordine mondiale postbellico): usa un'unica immagine, i saccheggiatori di un ordine in disfacimento, e la applica in sequenza a categorie diverse, fino a rovesciarla in una proposta etica. Genera una vera scintilla concettuale invece di limitarsi a descrivere un fenomeno.
+
+4. Può resistere al tempo?
+Valuta se il contenuto ha una scadenza intrinseca o affronta una domanda strutturale che avrà senso rileggere tra un anno.
+Segnali: linguaggio da hot take (adesso, ultim'ora, urgenza performativa) vs registro riflessivo; ancoraggio a dati/eventi contingenti vs una domanda che resta aperta oltre il contesto specifico.
+Ancoraggio 5 (parafrasato, fonte: Kevin Kelly, "The Fast Life of a Hot Atom"): usa la fisica, la densità di potenza energetica, per sostenere che i chip AI siano il sistema energeticamente più attivo mai esistito nell'universo conosciuto, un'affermazione strutturale non legata a un modello di chip specifico. Scritto 20 anni fa e ripubblicato oggi perché ancora vero.
+
+COMBINAZIONE DEL NUCLEO
+1. Assegna un punteggio 1-5 a ciascuno dei quattro criteri sopra, con motivazione scritta prima del numero. I quattro criteri sono indipendenti: valuta ciascuno solo in base alla propria domanda, senza lasciare che il giudizio complessivo che ti stai formando su un criterio contamini gli altri. Non è un difetto avere quattro punteggi diversi, è la norma — un contenuto tipico eccelle su un asse e zoppica su un altro.
+2. Calcola una media pesata, con un decimale, e scrivila nel campo media_pesata prima di scrivere punteggio_finale. Pesi di partenza provvisori: senso 30%, onestà culturale 30%, interesse 20%, tenuta nel tempo 20%.
+3. Correttivo di distintività: se la media è 4 o più, verifica di poter indicare almeno un elemento concretamente distintivo del contenuto. Non conta come distintivo un'osservazione nota riformulata con vocabolario tecnico o in modo più specifico nella forma: deve trattarsi di un dato, un caso verificabile, un collegamento o una conclusione che non era già patrimonio comune prima di leggere il testo. Se non riesci a indicarne uno con queste caratteristiche, abbassa il punteggio a 3, indipendentemente dalla media calcolata.
+
+CRITERIO DI UTILITÀ — correttivo bidirezionale, applicato dopo il nucleo
+Valuta se il contenuto ha un'utilità pratica.
+Direzione verso l'alto: se il punteggio del nucleo è basso ma l'utilità pratica è alta, puoi risollevare il punteggio finale.
+Direzione verso il basso: solo se tutte e tre queste condizioni sono vere insieme: 1) il profilo contiene un obiettivo dichiarato specifico, non una preferenza generica; 2) puoi indicare esplicitamente perché non c'è alcun ponte tra il contenuto e quell'obiettivo; 3) non hai un dubbio ragionevole su 1 o 2 — il beneficio del dubbio va sempre al contenuto.
+Se il profilo è assente o l'obiettivo è generico, la direzione verso il basso non si applica.
+
+GATE DI NOCIVITÀ — indipendente dal punteggio composito
+Valuta separatamente se il contenuto è pensato per danneggiare qualcuno o un gruppo, creare divisione, sfruttare la polarizzazione.
+Un'opinione controversa argomentata in buona fede, senza attacchi a persone o gruppi, non è nociva anche se prende una posizione netta. Un testo satirico o ironico non è nocivo anche se, letto fuori contesto, alcune frasi suonano tossiche: se un'affermazione estrema non ha un beneficiario plausibile che la sosterrebbe sinceramente, ed è espressa con un'iperbole oltre il credibile, è probabilmente ironia.
+Se il gate scatta: il punteggio finale è forzato a 1, con una motivazione esplicita che lo dichiara.
+
+VINCOLI DI FORMATO — importante per l'integrazione tecnica
+La risposta ha un budget di token limitato: se è troppo lunga viene tagliata a metà e il JSON risulta invalido. Rispetta sempre: ogni motivazione è una frase sola, massimo 25 parole, senza ripetere lo stesso ragionamento in più punti; sintesi non supera due frasi brevi; passaggi_deboli contiene al massimo due voci; non inserire mai un ritorno a capo dentro il testo di una stringa JSON, usa uno spazio o un trattino. Se ti accorgi di superare questi limiti, taglia subito: una risposta compatta e completa è sempre meglio di una più ricca ma troncata.
+
+FORMATO DI OUTPUT
+Rispondi sempre e solo con un oggetto JSON valido, senza testo fuori dall'oggetto, nessun markdown, nessuna spiegazione aggiuntiva, con questa struttura esatta. L'ordine dei campi non è arbitrario: in ogni oggetto la motivazione va scritta per prima, il verdetto (punteggio, scattato, direzione) è ciò che segue e discende da quella motivazione, mai il contrario — genera i campi nell'ordine in cui compaiono qui sotto.
+{
+  "gate_nocivita": { "motivazione": null, "scattato": false },
+  "collegamento": { "presente": false, "descrizione": "" },
+  "criteri": {
+    "senso": { "motivazione": "", "punteggio": 0 },
+    "onesta_culturale": { "motivazione": "", "veridicita": 0, "originalita": 0, "punteggio": 0 },
+    "interesse": { "motivazione": "", "personalizzato": false, "punteggio": 0 },
+    "tenuta_nel_tempo": { "motivazione": "", "punteggio": 0 }
+  },
+  "elemento_distintivo": null,
+  "utilita": { "motivazione": "", "direzione": "neutro" },
+  "media_pesata": 0,
+  "punteggio_finale": 0,
+  "passaggi_deboli": [ { "estratto": "", "criterio": "", "motivo": "" } ],
+  "sintesi": ""
+}
+collegamento.presente è vero solo se è stato fornito un intento immediato o un profilo permanente; descrizione è vuota se presente è falso.
+media_pesata è la media calcolata al punto 2 di COMBINAZIONE DEL NUCLEO, con un decimale, prima di eventuali correttivi. punteggio_finale è il valore dopo tutti i correttivi (distintività, utilità, gate) — può differire da media_pesata, e sempre di più quanto più i quattro criteri divergono tra loro.
+sintesi è una spiegazione breve (2-3 frasi) leggibile dall'utente finale, non da uno sviluppatore.`;
+
+let riferimenti = [];
+let refCounter = 0;
+
+function showView(view) {
+  document.getElementById('toolView').hidden = view !== 'tool';
+  document.getElementById('aboutView').hidden = view !== 'about';
+  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+}
+document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => showView(btn.dataset.view));
+});
+document.getElementById('logoBtn').addEventListener('click', () => showView('tool'));
+showView('tool');
+
+function addRefRow() {
+  const id = refCounter++;
+  riferimenti.push({ id, tipo: 'articolo', titolo_o_link: '', nota: '', testo_completo: '' });
+
+  const row = document.createElement('div');
+  row.className = 'ref-row';
+
+  const top = document.createElement('div');
+  top.className = 'ref-top';
+
+  const select = document.createElement('select');
+  select.setAttribute('data-field', 'tipo');
+  select.innerHTML = `
+    <option value="articolo">Articolo</option>
+    <option value="poesia_racconto">Poesia/Racconto</option>
+    <option value="libro">Libro</option>
+    <option value="video_podcast">Video/podcast</option>
+    <option value="progetto_personale">Progetto personale</option>
+  `;
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Titolo o link';
+  titleInput.setAttribute('data-field', 'titolo_o_link');
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'remove-ref';
+  removeBtn.textContent = '×';
+
+  top.appendChild(select);
+  top.appendChild(titleInput);
+  top.appendChild(removeBtn);
+
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text';
+  noteInput.placeholder = 'Nota facoltativa — perché conta per te';
+  noteInput.setAttribute('data-field', 'nota');
+
+  const FULL_TEXT_TYPES = ['articolo', 'poesia_racconto'];
+
+  const fullText = document.createElement('textarea');
+  fullText.placeholder = "Incolla qui il testo (facoltativo, rende il segnale più forte)";
+  fullText.setAttribute('data-field', 'testo_completo');
+
+  row.appendChild(top);
+  row.appendChild(noteInput);
+  row.appendChild(fullText);
+
+  function updateRef(field, value) {
+    const ref = riferimenti.find(r => r.id === id);
+    if (ref) ref[field] = value;
+  }
+
+  select.addEventListener('change', () => {
+    updateRef('tipo', select.value);
+    fullText.hidden = !FULL_TEXT_TYPES.includes(select.value);
+  });
+  fullText.hidden = !FULL_TEXT_TYPES.includes(select.value);
+
+  titleInput.addEventListener('input', () => updateRef('titolo_o_link', titleInput.value));
+  noteInput.addEventListener('input', () => updateRef('nota', noteInput.value));
+  fullText.addEventListener('input', () => updateRef('testo_completo', fullText.value));
+
+  removeBtn.addEventListener('click', () => {
+    riferimenti = riferimenti.filter(r => r.id !== id);
+    row.remove();
+  });
+
+  document.getElementById('refList').appendChild(row);
+}
+
+document.getElementById('addRefBtn').addEventListener('click', addRefRow);
+document.getElementById('evaluateBtn').addEventListener('click', evaluate);
+
+const PROVENANCE_LABELS = {
+  cercato: "L'ho cercato attivamente",
+  newsletter: 'È una newsletter a cui sono iscritto',
+  feed: 'Me lo ha proposto un feed o un social',
+  condiviso: 'Me lo ha condiviso qualcuno'
+};
+
+document.getElementById('provenanceSelect').addEventListener('change', (e) => {
+  document.getElementById('provenanceOtherInput').hidden = e.target.value !== 'altro';
+});
+
+function getProvenanceText() {
+  const val = document.getElementById('provenanceSelect').value;
+  if (!val) return 'non specificata';
+  if (val === 'altro') {
+    const custom = document.getElementById('provenanceOtherInput').value.trim();
+    return custom ? ('Altro: ' + custom) : 'Altro (non specificato)';
+  }
+  return PROVENANCE_LABELS[val] || val;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+async function evaluate() {
+  const content = document.getElementById('contentInput').value.trim();
+  if (!content) {
+    alert('Incolla un testo da valutare prima di procedere.');
+    return;
+  }
+
+  const btn = document.getElementById('evaluateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Valutando...';
+
+  const resultsSection = document.getElementById('resultsSection');
+  resultsSection.hidden = true;
+
+  const provenanceText = getProvenanceText();
+  const intent = document.getElementById('intentInput').value.trim();
+
+  const cleanRefs = riferimenti
+    .filter(r => r.titolo_o_link.trim() || r.nota.trim() || r.testo_completo.trim())
+    .map(r => {
+      const out = { tipo: r.tipo, titolo_o_link: r.titolo_o_link, nota: r.nota };
+      if (['articolo', 'poesia_racconto'].includes(r.tipo) && r.testo_completo.trim()) out.testo_completo = r.testo_completo;
+      return out;
+    });
+
+  const profile = { riferimenti: cleanRefs };
+
+  const userMessage =
+    'CONTENUTO DA VALUTARE:\n' + content +
+    '\n\nPROFILO PERSONALE (JSON):\n' + JSON.stringify(profile, null, 2) +
+    '\n\nINTENTO IMMEDIATO: ' + (intent || 'non dichiarato') +
+    '\n\n(Provenienza dichiarata da chi valuta: ' + provenanceText +
+    ' — informazione di contesto, non deve influenzare il punteggio.)';
+
+  try {
+    // La chiamata passa dalla funzione serverless /api/evaluate: la chiave
+    // Anthropic resta lato server e non è mai esposta nel browser.
+    const response = await fetch('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: SYSTEM_PROMPT,
+        message: userMessage
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || ('Errore di rete (' + response.status + ')'));
+    }
+
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('Risposta senza contenuto testuale.');
+
+    let raw = textBlock.text.trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+    // Un ritorno a capo dentro una stringa JSON non escapato la rende invalida:
+    // sostituirlo con uno spazio è sicuro, non cambia la struttura del JSON.
+    raw = raw.replace(/[\r\n]+/g, ' ').trim();
+
+    let result;
+    try {
+      result = JSON.parse(raw);
+    } catch (parseErr) {
+      parseErr.rawPreview = raw.length > 400 ? raw.slice(0, 400) + '…' : raw;
+      throw parseErr;
+    }
+    renderResults(result, content, provenanceText);
+  } catch (err) {
+    renderError(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Valuta';
+  }
+}
+
+function renderError(err) {
+  const resultsSection = document.getElementById('resultsSection');
+  resultsSection.hidden = false;
+  let html = '<p class="error">Qualcosa è andato storto nella valutazione (' + escapeHtml(err.message) + '). Riprova.</p>';
+  if (err.rawPreview) {
+    html += '<details style="margin-top:8px;"><summary style="font-size:13px;color:var(--muted);cursor:pointer;">Mostra la risposta grezza (debug)</summary>' +
+      '<pre style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin-top:8px;">' + escapeHtml(err.rawPreview) + '</pre></details>';
+  }
+  resultsSection.innerHTML = html;
+  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderResults(r, originalText, provenanceText) {
+  const resultsSection = document.getElementById('resultsSection');
+  resultsSection.hidden = false;
+
+  const gateOn = !!(r.gate_nocivita && r.gate_nocivita.scattato);
+  const finalScore = r.punteggio_finale;
+  const scoreClass = gateOn ? 'low' : (finalScore >= 4 ? 'high' : (finalScore >= 2.5 ? 'mid' : 'low'));
+
+  let html = '';
+
+  if (gateOn) {
+    html += '<div class="gate-banner">Contenuto segnalato dal gate di nocività — ' +
+      escapeHtml(r.gate_nocivita.motivazione || '') + '</div>';
+  }
+
+  html += '<div class="result-summary"><div class="score-badge ' + scoreClass + '">' + escapeHtml(finalScore) +
+    '<span class="score-scale"> / 5</span></div>' +
+    '<p class="synthesis">' + escapeHtml(r.sintesi || '') + '</p></div>';
+
+  if (r.collegamento) {
+    if (r.collegamento.presente) {
+      html += '<div class="distinctive"><strong>Come si collega a quello che stai cercando di fare:</strong> ' +
+        escapeHtml(r.collegamento.descrizione || '') + '</div>';
+    } else {
+      html += '<div class="provenance-info">Nessun intento o contesto personale dichiarato — valutazione generica su interesse e utilità.</div>';
+    }
+  }
+
+  const labels = {
+    senso: 'Ha senso',
+    onesta_culturale: 'Onestà culturale',
+    interesse: 'Interesse',
+    tenuta_nel_tempo: 'Tenuta nel tempo'
+  };
+
+  html += '<div class="criteria-grid">';
+  ['senso', 'onesta_culturale', 'interesse', 'tenuta_nel_tempo'].forEach(key => {
+    const c = r.criteri && r.criteri[key];
+    if (!c) return;
+    html += '<div class="criterion-card"><span class="tag">' + labels[key] +
+      '</span><div class="criterion-score">' + escapeHtml(c.punteggio) + ' / 5</div><p>' +
+      escapeHtml(c.motivazione || '') + '</p></div>';
+  });
+  html += '</div>';
+
+  if (r.elemento_distintivo) {
+    html += '<div class="distinctive"><strong>Punto di forza:</strong> ' + escapeHtml(r.elemento_distintivo) + '</div>';
+  }
+
+  if (r.utilita) {
+    const dirLabel = { alza: 'ha alzato il punteggio', abbassa: 'ha abbassato il punteggio' };
+    const prefix = dirLabel[r.utilita.direzione];
+    html += '<div class="utility"><strong>Utilità:</strong> ' +
+      (prefix ? prefix + ' — ' : '') +
+      escapeHtml(r.utilita.motivazione || '') + '</div>';
+  }
+
+  html += '<div class="provenance-info">Provenienza dichiarata: ' + escapeHtml(provenanceText) + '</div>';
+
+  if (r.passaggi_deboli && r.passaggi_deboli.length) {
+    let highlighted = escapeHtml(originalText);
+    r.passaggi_deboli.forEach(p => {
+      if (!p.estratto) return;
+      const esc = escapeHtml(p.estratto);
+      if (esc && highlighted.indexOf(esc) !== -1) {
+        const titleAttr = escapeHtml((p.criterio || '') + ': ' + (p.motivo || ''));
+        highlighted = highlighted.replace(esc, '<mark class="weak" title="' + titleAttr + '">' + esc + '</mark>');
+      }
+    });
+    html += '<div class="passage-block"><h3>Testo valutato</h3><p class="passage-text">' +
+      highlighted.replace(/\n/g, '<br>') + '</p></div>';
+  }
+
+  resultsSection.innerHTML = html;
+  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>

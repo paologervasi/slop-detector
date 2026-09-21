@@ -751,7 +751,7 @@
 
   <details class="context section-card">
     <summary>Il tuo contesto</summary>
-    <p class="context-intro">Dicci cosa conta per te. Segnalaci articoli, libri, video che per te sono un esempio di qualità. Oppure raccontaci il tuo progetto personale, così aiuti il tool a capire cosa ti serve, e cosa puoi ignorare.</p>
+    <p class="context-intro">Dicci cosa conta per te. Segnalaci testi, autori, articoli, libri, video che per te sono un esempio di qualità. Oppure raccontaci il tuo progetto personale, così aiuti il tool a capire cosa ti serve, e cosa puoi ignorare.</p>
     <div id="refList"></div>
     <button type="button" id="addRefBtn">+ Aggiungi un riferimento</button>
   </details>
@@ -842,10 +842,10 @@ VINCOLI DI COMPORTAMENTO — leggi prima di tutto
 - Se il profilo personale non è disponibile o è vuoto, usa i criteri generali indicati in ogni sezione — non inventare interessi, gusti o obiettivi che non ti sono stati dichiarati esplicitamente.
 
 FORMATO DEL PROFILO PERSONALE (INPUT)
-Il profilo, quando disponibile, arriva come JSON con una lista "riferimenti", ciascuno con tipo, titolo_o_link, nota, ed eventualmente testo_completo per i tipi articolo e poesia_racconto. Zero, uno o più riferimenti per tipo, tutti facoltativi.
-- articolo, poesia_racconto, quando testo_completo è presente: segnale forte, trattalo come materiale di calibrazione vero, stesso peso concettuale degli ancoraggi 5 di questo prompt. Per poesia_racconto applica i criteri del nucleo con il metro proprio della scrittura creativa: "ha senso" valuta coerenza interna e intenzione espressiva (non tesi argomentativa), "onestà culturale" valuta soprattutto originalità di voce più che veridicità fattuale.
+Il profilo, quando disponibile, arriva come JSON con una lista "riferimenti", ciascuno con tipo, titolo_o_link, nota, ed eventualmente testo_completo per i tipi articolo, poesia_racconto e testo_generico. Zero, uno o più riferimenti per tipo, tutti facoltativi.
+- articolo, poesia_racconto, testo_generico, quando testo_completo è presente: segnale forte, trattalo come materiale di calibrazione vero, stesso peso concettuale degli ancoraggi 5 di questo prompt. Per poesia_racconto applica i criteri del nucleo con il metro proprio della scrittura creativa: "ha senso" valuta coerenza interna e intenzione espressiva (non tesi argomentativa), "onestà culturale" valuta soprattutto originalità di voce più che veridicità fattuale. testo_generico è la categoria per tutto ciò che non rientra negli altri tipi (un post social, un'email, un documento) ma di cui l'utente ha comunque incollato il testo integrale: trattalo con gli stessi criteri generali del nucleo, usando il formato dichiarato o desumibile dal testo stesso per calibrare le aspettative.
   Termine di paragone diretto: se un riferimento è dello stesso genere o formato del contenuto da valutare (una poesia contro un'altra poesia, un discorso contro un altro discorso, un saggio contro un altro saggio), non trattarlo come semplice sfondo culturale — usalo come metro di paragone diretto e prioritario, criterio per criterio. Chiediti esplicitamente se il contenuto regge il confronto con quel riferimento specifico, non con la media dei testi del suo genere. Se l'utente ha scelto come riferimento un autore o un testo che rappresenta uno standard alto (un classico riconosciuto, un discorso storico), misura il contenuto su quello standard: un testo onesto, sentito, tecnicamente corretto ma privo della densità, tensione o originalità del riferimento riceve un punteggio proporzionalmente più basso, non un punteggio indulgente solo perché è comunque una poesia, comunque un discorso ben costruito. La scelta del riferimento è un'indicazione esplicita e forte di cosa l'utente considera qualità: trattarla come sfondo vago invece che come metro di paragone tradisce l'intento con cui è stata fornita. Questo vale indipendentemente da quanto il contenuto valutato sia gradevole o competente in assoluto — qui il giudizio richiesto è relativo al riferimento, non assoluto.
-- libro, video_podcast: solo titolo/link + eventuale nota, mai il contenuto integrale — non è stato letto né ascoltato. Segnale debole ma non nullo: usalo per farti un'idea di sensibilità culturale generale, non per valutazioni puntuali su temi specifici.
+- libro, video_podcast, autore_autrice: solo titolo/link + eventuale nota, mai il contenuto integrale — non è stato letto né ascoltato. Segnale debole ma non nullo: usalo per farti un'idea di sensibilità culturale generale, non per valutazioni puntuali su temi specifici. autore_autrice indica un nome (es. un autore o un'autrice che l'utente ammira) senza un'opera specifica citata: usalo solo per calibrare il registro/gusto generale atteso, non per confronti puntuali con un testo preciso di quell'autore.
 - progetto_personale: link o descrizione a qualcosa su cui l'utente sta lavorando. Funziona anche come indicatore di obiettivo dichiarato — se presente, può soddisfare la condizione 1 del correttivo di utilità verso il basso, non solo il criterio interesse.
 Se riferimenti è assente o vuoto, applica i fallback generali indicati sotto.
 
@@ -953,12 +953,15 @@ function addRefRow() {
   const select = document.createElement('select');
   select.setAttribute('data-field', 'tipo');
   select.innerHTML = `
+    <option value="autore_autrice">Autore / autrice</option>
+    <option value="testo_generico">Testo generico</option>
     <option value="articolo">Articolo</option>
     <option value="poesia_racconto">Poesia/Racconto</option>
     <option value="libro">Libro</option>
     <option value="video_podcast">Video/podcast</option>
     <option value="progetto_personale">Progetto personale</option>
   `;
+  select.value = 'articolo';
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -979,7 +982,7 @@ function addRefRow() {
   noteInput.placeholder = 'Nota facoltativa — perché conta per te';
   noteInput.setAttribute('data-field', 'nota');
 
-  const FULL_TEXT_TYPES = ['articolo', 'poesia_racconto'];
+  const FULL_TEXT_TYPES = ['articolo', 'poesia_racconto', 'testo_generico'];
 
   const fullText = document.createElement('textarea');
   fullText.placeholder = "Incolla qui il testo (facoltativo, rende il segnale più forte)";
@@ -1105,7 +1108,7 @@ async function evaluate() {
     .filter(r => r.titolo_o_link.trim() || r.nota.trim() || r.testo_completo.trim())
     .map(r => {
       const out = { tipo: r.tipo, titolo_o_link: r.titolo_o_link, nota: r.nota };
-      if (['articolo', 'poesia_racconto'].includes(r.tipo) && r.testo_completo.trim()) out.testo_completo = r.testo_completo;
+      if (['articolo', 'poesia_racconto', 'testo_generico'].includes(r.tipo) && r.testo_completo.trim()) out.testo_completo = r.testo_completo;
       return out;
     });
 

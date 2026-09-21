@@ -70,6 +70,22 @@
   }
   .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
 
+  .link-fetch { margin-bottom: 18px; }
+  .link-fetch label { display: block; font-size: 14px; margin-bottom: 6px; }
+  .link-fetch-row { display: flex; gap: 8px; }
+  .link-fetch-row input[type="url"] {
+    flex: 1 1 auto; min-width: 0; font-family: var(--sans); font-size: 14px; padding: 8px;
+    border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink);
+  }
+  .link-fetch-row button {
+    font-family: var(--sans); font-size: 14px; padding: 8px 14px; border: 1px solid var(--line);
+    border-radius: 4px; background: white; color: var(--ink); cursor: pointer; white-space: nowrap;
+  }
+  .link-fetch-row button:hover:not(:disabled) { border-color: var(--muted); }
+  .link-fetch-row button:disabled { opacity: .5; cursor: default; }
+  .link-fetch-status { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .link-fetch-status.error { color: var(--low); }
+
   .provenance { margin-top: 20px; }
   .provenance label { display: block; font-size: 14px; margin-bottom: 6px; }
   .provenance select {
@@ -741,8 +757,17 @@
   </details>
 
   <section class="input-section section-card">
+    <div class="link-fetch">
+      <label for="urlInput">Hai un link invece del testo? Prova a farlo recuperare automaticamente</label>
+      <div class="link-fetch-row">
+        <input type="url" id="urlInput" placeholder="https://...">
+        <button type="button" id="fetchUrlBtn">Recupera testo</button>
+      </div>
+      <p class="link-fetch-status" id="linkFetchStatus" hidden></p>
+    </div>
+
     <textarea id="contentInput" placeholder="Incolla qui il testo da valutare..."></textarea>
-    <p class="hint">Incolla il testo, non un link, così sei sicuro che il tool riesca a leggerlo per intero.</p>
+    <p class="hint">Incollare il testo a mano resta il metodo più affidabile: sei sicuro che il tool lo legga per intero. Il recupero dal link è comodo ma può fallire su paywall o pagine dinamiche — controlla sempre il risultato prima di valutare.</p>
 
     <div class="provenance">
       <label for="intentInput">Perché ti interessa valutare questo contenuto?</label>
@@ -989,6 +1014,48 @@ function addRefRow() {
 
 document.getElementById('addRefBtn').addEventListener('click', addRefRow);
 document.getElementById('evaluateBtn').addEventListener('click', evaluate);
+document.getElementById('fetchUrlBtn').addEventListener('click', fetchUrlText);
+
+async function fetchUrlText() {
+  const urlInput = document.getElementById('urlInput');
+  const status = document.getElementById('linkFetchStatus');
+  const btn = document.getElementById('fetchUrlBtn');
+  const url = urlInput.value.trim();
+
+  status.hidden = false;
+  if (!url) {
+    status.className = 'link-fetch-status error';
+    status.textContent = 'Incolla prima un link.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Recupero...';
+  status.className = 'link-fetch-status';
+  status.textContent = 'Recupero il testo dalla pagina...';
+
+  try {
+    const response = await fetch('/api/fetch-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Errore nel recupero della pagina.');
+    }
+    document.getElementById('contentInput').value = data.text;
+    status.className = 'link-fetch-status';
+    status.textContent = 'Testo recuperato' + (data.title ? ' da «' + data.title + '»' : '') +
+      ' — controllalo prima di valutare, il recupero automatico può contenere imprecisioni.';
+  } catch (err) {
+    status.className = 'link-fetch-status error';
+    status.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Recupera testo';
+  }
+}
 
 const PROVENANCE_LABELS = {
   cercato: "L'ho cercato attivamente",
